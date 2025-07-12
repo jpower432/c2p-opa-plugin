@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/hashicorp/go-hclog"
-	"github.com/oscal-compass/oscal-sdk-go/extensions"
 	cp "github.com/otiai10/copy"
 
 	"github.com/oscal-compass/compliance-to-policy-go/v2/logging"
@@ -97,14 +96,8 @@ func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
 				CheckID:     name,
 				Description: fmt.Sprintf("Observation of check %s", name),
 				Methods:     []string{"TEST-AUTOMATED"},
-				Props: []policy.Property{
-					{
-						Name:  extensions.AssessmentRuleIdProp,
-						Value: rule.Rule.ID,
-					},
-				},
-				Collected: time.Now(),
-				Subjects:  []policy.Subject{},
+				Collected:   time.Now(),
+				Subjects:    []policy.Subject{},
 			}
 			normalizedOPAResults := normalizeOPAResult(opaResults)
 			for _, result := range normalizedOPAResults {
