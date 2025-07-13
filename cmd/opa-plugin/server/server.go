@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/hashicorp/go-hclog"
-	"github.com/open-policy-agent/opa/v1/rego"
 	cp "github.com/otiai10/copy"
 
 	"github.com/oscal-compass/compliance-to-policy-go/v2/logging"
@@ -69,8 +68,6 @@ func (p *Plugin) Generate(pl policy.Policy) error {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("%v", string(policyConfigData)))
-
 	configFileName := filepath.Join(p.config.PolicyOutput, "config.json")
 	if err := os.WriteFile(configFileName, policyConfigData, 0644); err != nil {
 		return fmt.Errorf("failed to write policy config to %s: %w", configFileName, err)
@@ -89,8 +86,9 @@ func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
 			if err != nil {
 				return policy.PVPResult{}, err
 			}
-			var opaResults rego.ResultSet
-			if err := json.Unmarshal(file, &opaResults); err != nil {
+
+			var opaResult output
+			if err := json.Unmarshal(file, &opaResult); err != nil {
 				return policy.PVPResult{}, fmt.Errorf("failed to unmarshal opa results for %s: %w", name, err)
 			}
 
@@ -102,7 +100,7 @@ func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
 				Collected:   time.Now(),
 				Subjects:    []policy.Subject{},
 			}
-			normalizedOPAResults := normalizeOPAResult(opaResults)
+			normalizedOPAResults := NormalizeOPAResult(opaResult.Result)
 			for _, result := range normalizedOPAResults {
 				observation.Subjects = append(observation.Subjects, results2Subject(result))
 			}
@@ -115,7 +113,7 @@ func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
 	return result, nil
 }
 
-func results2Subject(results normalizedOPAResult) policy.Subject {
+func results2Subject(results NormalizedOPAResult) policy.Subject {
 	subject := policy.Subject{
 		Title:       results.EvaluatedResourceName,
 		ResourceID:  results.EvaluatedResourceID,

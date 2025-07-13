@@ -11,9 +11,13 @@ import (
 
 // Assisted by: Gemini 2.5 Flash
 
+type output struct {
+	Result rego.ResultSet `json:"result"`
+}
+
 // NormalizedOPAResult represents the consistent structure your application expects
 // from any OPA policy decision.
-type normalizedOPAResult struct {
+type NormalizedOPAResult struct {
 	Allowed         bool     `json:"allowed"`
 	Reason          string   `json:"reason,omitempty"`
 	Violations      []string `json:"violations,omitempty"`
@@ -31,20 +35,20 @@ type normalizedOPAResult struct {
 }
 
 // NormalizeOPAResult converts an OPA decision.Result (interface{}) into a consistent NormalizedOPAResult struct.
-func normalizeOPAResult(rawResult rego.ResultSet) []normalizedOPAResult {
-	var normalizedResults []normalizedOPAResult
+func NormalizeOPAResult(rawResult rego.ResultSet) []NormalizedOPAResult {
+	var normalizedResults []NormalizedOPAResult
 
 	for _, results := range rawResult {
 		for _, expression := range results.Expressions {
 			value, ok := expression.Value.(map[string]interface{})
 			if ok {
-				normalized := normalizedOPAResult{
+				normalized := NormalizedOPAResult{
 					Allowed:   false, // Default to denied/not allowed
 					Reason:    "No decision or explicitly denied by policy.",
 					RawResult: rawResult,
 				}
 
-				if allowed, ok := value["allowed"].(bool); ok {
+				if allowed, ok := value["allow"].(bool); ok {
 					normalized.Allowed = allowed
 					if allowed {
 						normalized.Reason = "Policy allowed access."
@@ -53,14 +57,9 @@ func normalizeOPAResult(rawResult rego.ResultSet) []normalizedOPAResult {
 					}
 				}
 
-				if violations, ok := value["violation"].([]interface{}); ok {
-					normalized.Violations = make([]string, len(violations))
-					for i, v := range violations {
-						if s, isString := v.(string); isString {
-							normalized.Violations[i] = s
-						} else {
-							normalized.Violations[i] = fmt.Sprintf("%v", v) // Convert non-strings to string
-						}
+				if violations, ok := value["violation"].(map[string]interface{}); ok {
+					for v := range violations {
+						normalized.Violations = append(normalized.Violations, v)
 					}
 					if len(normalized.Violations) > 0 {
 						normalized.Allowed = false                             // If violations exist, typically not allowed
@@ -99,7 +98,7 @@ func normalizeOPAResult(rawResult rego.ResultSet) []normalizedOPAResult {
 	return normalizedResults
 }
 
-func mapResults(results normalizedOPAResult) policy.Result {
+func mapResults(results NormalizedOPAResult) policy.Result {
 	if len(results.Violations) == 0 && results.Allowed && results.Error != "" {
 		return policy.ResultPass
 	}
