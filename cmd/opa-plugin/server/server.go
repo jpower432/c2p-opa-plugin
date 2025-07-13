@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,15 +11,15 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/hashicorp/go-hclog"
-	cp "github.com/otiai10/copy"
-
+	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/oscal-compass/compliance-to-policy-go/v2/logging"
 	"github.com/oscal-compass/compliance-to-policy-go/v2/policy"
 )
 
 var (
-	_      policy.Provider = (*Plugin)(nil)
-	logger hclog.Logger    = logging.NewPluginLogger()
+	_           policy.Provider = (*Plugin)(nil)
+	logger      hclog.Logger    = logging.NewPluginLogger()
+	regoVersion                 = ast.RegoV1
 )
 
 func Logger() hclog.Logger {
@@ -41,36 +42,16 @@ func (p *Plugin) Configure(m map[string]string) error {
 }
 
 func (p *Plugin) Generate(pl policy.Policy) error {
-	policyConfig := map[string]map[string]string{}
-	outputDir := p.config.PolicyOutput
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
+	composer := NewComposer(p.config.PolicyTemplates, p.config.PolicyOutput)
+	if err := composer.GeneratePolicySet(pl); err != nil {
+		return fmt.Errorf("error generating policies: %w", err)
 	}
 
-	for _, rule := range pl {
-		parameterMap := make(map[string]string)
-		for _, prm := range rule.Rule.Parameters {
-			parameterMap[prm.ID] = prm.Value
+	if p.config.Bundle != "" {
+		logger.Info(fmt.Sprintf("Creating policy bundle at %s", p.config.Bundle))
+		if err := composer.Bundle(context.Background(), p.config); err != nil {
+			return fmt.Errorf("error creating policy bundle: %w", err)
 		}
-		policyConfig[rule.Rule.ID] = parameterMap
-		// Copy over in-scope policies checks for the assessment
-		for _, check := range rule.Checks {
-			origfilePath := filepath.Join(p.config.PolicyTemplates, fmt.Sprintf("%s.rego", check.ID))
-			destfilePath := filepath.Join(p.config.PolicyOutput, fmt.Sprintf("%s.rego", check.ID))
-			if err := cp.Copy(origfilePath, destfilePath); err != nil {
-				return err
-			}
-		}
-	}
-
-	policyConfigData, err := json.MarshalIndent(policyConfig, "", " ")
-	if err != nil {
-		return err
-	}
-
-	configFileName := filepath.Join(p.config.PolicyOutput, "config.json")
-	if err := os.WriteFile(configFileName, policyConfigData, 0644); err != nil {
-		return fmt.Errorf("failed to write policy config to %s: %w", configFileName, err)
 	}
 
 	return nil

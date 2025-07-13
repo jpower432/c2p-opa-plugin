@@ -11,6 +11,10 @@ type Config struct {
 	PolicyTemplates string `mapstructure:"policy-templates"`
 	PolicyOutput    string `mapstructure:"policy-output"`
 	PolicyResults   string `mapstructure:"policy-results"`
+	// Bundle optionally by setting this value
+	Bundle         string `mapstructure:"bundle"`
+	BundleRevision string `mapstructure:"bundle-revision"`
+	// TODO: Add support for signing
 }
 
 func (c Config) Validate() error {
