@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/open-policy-agent/opa/v1/rego"
+
 	"github.com/oscal-compass/compliance-to-policy-go/v2/policy"
 )
 
@@ -29,90 +31,67 @@ type normalizedOPAResult struct {
 }
 
 // NormalizeOPAResult converts an OPA decision.Result (interface{}) into a consistent NormalizedOPAResult struct.
-func normalizeOPAResult(rawResult map[string]interface{}) []normalizedOPAResult {
+func normalizeOPAResult(rawResult rego.ResultSet) []normalizedOPAResult {
 	var normalizedResults []normalizedOPAResult
 
-	results, ok := rawResult["result"].([]interface{})
-	if ok {
-		for _, result := range results {
-			if resultMap, ok := result.(map[string]interface{}); ok {
-				expressions, ok := resultMap["expressions"].([]interface{})
-				if ok {
-					for _, expression := range expressions {
-						if expressionMap, ok := expression.(map[string]interface{}); ok {
-							if value, ok := expressionMap["value"].(map[string]interface{}); ok {
+	for _, results := range rawResult {
+		for _, expression := range results.Expressions {
+			value, ok := expression.Value.(map[string]interface{})
+			if ok {
+				normalized := normalizedOPAResult{
+					Allowed:   false, // Default to denied/not allowed
+					Reason:    "No decision or explicitly denied by policy.",
+					RawResult: rawResult,
+				}
 
-								logger.Info("%v", value)
+				if allowed, ok := value["allowed"].(bool); ok {
+					normalized.Allowed = allowed
+					if allowed {
+						normalized.Reason = "Policy allowed access."
+					} else {
+						normalized.Reason = "Policy explicitly denied access."
+					}
+				}
 
-								normalized := normalizedOPAResult{
-									Allowed:   false, // Default to denied/not allowed
-									Reason:    "No decision or explicitly denied by policy.",
-									RawResult: rawResult,
-								}
-
-								if allowed, ok := value["allowed"].(bool); ok {
-									normalized.Allowed = allowed
-									if allowed {
-										normalized.Reason = "Policy allowed access."
-									} else {
-										normalized.Reason = "Policy explicitly denied access."
-									}
-								}
-
-								if violations, ok := value["violation"].([]interface{}); ok {
-									normalized.Violations = make([]string, len(violations))
-									for i, v := range violations {
-										if s, isString := v.(string); isString {
-											normalized.Violations[i] = s
-										} else {
-											normalized.Violations[i] = fmt.Sprintf("%v", v) // Convert non-strings to string
-										}
-									}
-									if len(normalized.Violations) > 0 {
-										normalized.Allowed = false                             // If violations exist, typically not allowed
-										if !strings.Contains(normalized.Reason, "violation") { // Avoid redundant messages
-											normalized.Reason = "Policy denied due to violations."
-										}
-									}
-								}
-
-								if errorMsg, ok := value["error"].(string); ok {
-									normalized.Error = errorMsg
-									normalized.Allowed = false // An explicit error usually means not allowed
-									normalized.Reason = fmt.Sprintf("Policy reported an error: %s", errorMsg)
-								}
-
-								// Optionally gave resource information if available
-								if resourceID, ok := value["evaluation_resource_id"].(string); ok {
-									normalized.EvaluatedResourceID = resourceID
-								}
-								if resourceType, ok := value["evaluation_resource_type"].(string); ok {
-									normalized.EvaluatedResourceType = resourceType
-								}
-								if resourceName, ok := value["evaluation_resource_name"].(string); ok {
-									normalized.EvaluatedResourceName = resourceName
-								}
-
-								// Capture any other fields into Metadata
-								normalized.Metadata = make(map[string]interface{})
-								for k, v := range rawResult {
-									switch k {
-									case "allowed", "reason", "violations", "recommendations":
-										// These are already handled
-									default:
-										normalized.Metadata[k] = v
-									}
-								}
-
-								// If we found 'allowed' in the map, and no violations, default reason is "allowed"
-								if normalized.Allowed && len(normalized.Violations) == 0 && normalized.Reason == "No decision or explicitly denied by policy." {
-									normalized.Reason = "Policy allowed access."
-								}
-								normalizedResults = append(normalizedResults, normalized)
-							}
+				if violations, ok := value["violation"].([]interface{}); ok {
+					normalized.Violations = make([]string, len(violations))
+					for i, v := range violations {
+						if s, isString := v.(string); isString {
+							normalized.Violations[i] = s
+						} else {
+							normalized.Violations[i] = fmt.Sprintf("%v", v) // Convert non-strings to string
+						}
+					}
+					if len(normalized.Violations) > 0 {
+						normalized.Allowed = false                             // If violations exist, typically not allowed
+						if !strings.Contains(normalized.Reason, "violation") { // Avoid redundant messages
+							normalized.Reason = "Policy denied due to violations."
 						}
 					}
 				}
+
+				if errorMsg, ok := value["error"].(string); ok {
+					normalized.Error = errorMsg
+					normalized.Allowed = false // An explicit error usually means not allowed
+					normalized.Reason = fmt.Sprintf("Policy reported an error: %s", errorMsg)
+				}
+
+				// Optionally gave resource information if available
+				if resourceID, ok := value["evaluation_resource_id"].(string); ok {
+					normalized.EvaluatedResourceID = resourceID
+				}
+				if resourceType, ok := value["evaluation_resource_type"].(string); ok {
+					normalized.EvaluatedResourceType = resourceType
+				}
+				if resourceName, ok := value["evaluation_resource_name"].(string); ok {
+					normalized.EvaluatedResourceName = resourceName
+				}
+
+				// If we found 'allowed' in the map, and no violations, default reason is "allowed"
+				if normalized.Allowed && len(normalized.Violations) == 0 && normalized.Reason == "No decision or explicitly denied by policy." {
+					normalized.Reason = "Policy allowed access."
+				}
+				normalizedResults = append(normalizedResults, normalized)
 			}
 		}
 	}
