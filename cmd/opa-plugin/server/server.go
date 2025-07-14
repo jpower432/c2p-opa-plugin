@@ -109,9 +109,9 @@ func results2Subject(results NormalizedOPAResult) policy.Subject {
 
 	if len(results.Violations) > 0 {
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("%s\nViolations:", subject.Reason))
+		sb.WriteString(fmt.Sprintf("%s\\nViolations:", subject.Reason))
 		for _, violation := range results.Violations {
-			sb.WriteString(fmt.Sprintf("\n%s", violation))
+			sb.WriteString(fmt.Sprintf("\\n%s", violation))
 		}
 		subject.Reason = sb.String()
 	}
