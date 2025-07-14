@@ -25,7 +25,7 @@ func Test_Results2Subject(t *testing.T) {
 		Type:       "resource",
 		ResourceID: "github.com/example/demo@main",
 		Result:     policy.ResultFail,
-		Reason: "Policy denied due to violations.\\nViolations:\\nBranch protection for 'main' requires pull request reviews " +
+		Reason: "Policy denied due to violations. Violations: Branch protection for 'main' requires pull request reviews " +
 			"but has less than the configured minimum of 1 required approving reviews.",
 	}
 
