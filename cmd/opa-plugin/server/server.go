@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -96,12 +97,24 @@ func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
 
 func results2Subject(results NormalizedOPAResult) policy.Subject {
 	subject := policy.Subject{
-		Title:       results.EvaluatedResourceName,
-		ResourceID:  results.EvaluatedResourceID,
-		Type:        results.EvaluatedResourceType,
-		Result:      mapResults(results),
+		Title:      results.EvaluatedResourceName,
+		ResourceID: results.EvaluatedResourceID,
+		Type:       results.EvaluatedResourceType,
+		Result:     mapResults(results),
+		// TODO: This is not really representative of when the policy was executing.
+		// It may require additional decision metadata to accomplish this.
 		EvaluatedOn: time.Now(),
 		Reason:      results.Reason,
 	}
+
+	if len(results.Violations) > 0 {
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("%s\nViolations:", subject.Reason))
+		for _, violation := range results.Violations {
+			sb.WriteString(fmt.Sprintf("\n%s", violation))
+		}
+		subject.Reason = sb.String()
+	}
+
 	return subject
 }
