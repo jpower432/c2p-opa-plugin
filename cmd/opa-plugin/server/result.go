@@ -19,6 +19,7 @@ type output struct {
 // from any OPA policy decision.
 type NormalizedOPAResult struct {
 	Allowed         bool     `json:"allowed"`
+	PolicyId        string   `json:"policy_id"`
 	Reason          string   `json:"reason,omitempty"`
 	Violations      []string `json:"violations,omitempty"`
 	Recommendations []string `json:"recommendations,omitempty"` // Example: for audit policies
@@ -55,6 +56,10 @@ func NormalizeOPAResult(rawResult rego.ResultSet) []NormalizedOPAResult {
 					} else {
 						normalized.Reason = "Policy explicitly denied access."
 					}
+				}
+
+				if policyId, ok := value["policy_id"].(string); ok {
+					normalized.PolicyId = policyId
 				}
 
 				if violations, ok := value["violation"].(map[string]interface{}); ok {
