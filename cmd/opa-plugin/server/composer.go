@@ -83,7 +83,7 @@ func (c *Composer) GeneratePolicySet(pl policy.Policy) error {
 		return err
 	}
 
-	configFileName := filepath.Join(outputDir, "config.json")
+	configFileName := filepath.Join(outputDir, "data.json")
 	if err := os.WriteFile(configFileName, policyConfigData, 0644); err != nil {
 		return fmt.Errorf("failed to write policy config to %s: %w", configFileName, err)
 	}
