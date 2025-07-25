@@ -18,6 +18,7 @@ func Test_NormalizedOPAResults(t *testing.T) {
             "evaluation_resource_id": "github.com/example/demo@main",
             "evaluation_resource_name": "github.com/example/demo@main",
             "evaluation_resource_type": "resource",
+            "policy_id": "my-policy",
             "has_pull_request_rule": true,
             "main_branch_min_approvals": "1",
             "violation": {
@@ -42,6 +43,7 @@ func Test_NormalizedOPAResults(t *testing.T) {
 	expectedResults := []NormalizedOPAResult{
 		{
 			Allowed:               false,
+			PolicyId:              "my-policy",
 			Reason:                "Policy denied due to violations.",
 			EvaluatedResourceType: "resource",
 			EvaluatedResourceID:   "github.com/example/demo@main",

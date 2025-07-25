@@ -58,18 +58,16 @@ func (c *Composer) Bundle(ctx context.Context, config Config) error {
 }
 
 func (c *Composer) GeneratePolicySet(pl policy.Policy) error {
-	policyConfig := map[string]map[string]string{}
+	parameterMap := map[string]string{}
 	outputDir := c.policyOutput
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
 	}
 
 	for _, rule := range pl {
-		parameterMap := make(map[string]string)
 		for _, prm := range rule.Rule.Parameters {
 			parameterMap[prm.ID] = prm.Value
 		}
-		policyConfig[rule.Rule.ID] = parameterMap
 		// Copy over in-scope policies checks for the assessment
 		for _, check := range rule.Checks {
 			origfilePath := filepath.Join(c.policiesTemplates, fmt.Sprintf("%s.rego", check.ID))
@@ -80,12 +78,12 @@ func (c *Composer) GeneratePolicySet(pl policy.Policy) error {
 		}
 	}
 
-	policyConfigData, err := json.MarshalIndent(policyConfig, "", " ")
+	policyConfigData, err := json.MarshalIndent(parameterMap, "", " ")
 	if err != nil {
 		return err
 	}
 
-	configFileName := filepath.Join(outputDir, "config.json")
+	configFileName := filepath.Join(outputDir, "data.json")
 	if err := os.WriteFile(configFileName, policyConfigData, 0644); err != nil {
 		return fmt.Errorf("failed to write policy config to %s: %w", configFileName, err)
 	}

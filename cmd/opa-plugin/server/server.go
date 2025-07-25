@@ -2,11 +2,8 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,34 +56,33 @@ func (p *Plugin) Generate(pl policy.Policy) error {
 }
 
 func (p *Plugin) GetResults(pl policy.Policy) (policy.PVPResult, error) {
+
+	policyIndex := NewLoader()
+	if err := policyIndex.LoadFromDirectory(p.config.PolicyResults); err != nil {
+		return policy.PVPResult{}, fmt.Errorf("failed to load policy results: %w", err)
+	}
+
 	var observations []policy.ObservationByCheck
 	for _, rule := range pl {
 		for _, check := range rule.Checks {
 			name := check.ID
-			resultsFilePath := filepath.Join(p.config.PolicyResults, fmt.Sprintf("%s.json", name))
-			file, err := os.ReadFile(resultsFilePath)
-			if err != nil {
-				return policy.PVPResult{}, err
+
+			normalizedOPAResults := policyIndex.ResultsByPolicyId(name)
+			if len(normalizedOPAResults) > 0 {
+				observation := policy.ObservationByCheck{
+					Title:       rule.Rule.ID,
+					CheckID:     name,
+					Description: fmt.Sprintf("Observation of check %s", name),
+					Methods:     []string{"TEST-AUTOMATED"},
+					Collected:   time.Now(),
+					Subjects:    []policy.Subject{},
+				}
+				for _, result := range normalizedOPAResults {
+					observation.Subjects = append(observation.Subjects, results2Subject(result))
+				}
+				observations = append(observations, observation)
 			}
 
-			var opaResult output
-			if err := json.Unmarshal(file, &opaResult); err != nil {
-				return policy.PVPResult{}, fmt.Errorf("failed to unmarshal opa results for %s: %w", name, err)
-			}
-
-			observation := policy.ObservationByCheck{
-				Title:       rule.Rule.ID,
-				CheckID:     name,
-				Description: fmt.Sprintf("Observation of check %s", name),
-				Methods:     []string{"TEST-AUTOMATED"},
-				Collected:   time.Now(),
-				Subjects:    []policy.Subject{},
-			}
-			normalizedOPAResults := NormalizeOPAResult(opaResult.Result)
-			for _, result := range normalizedOPAResults {
-				observation.Subjects = append(observation.Subjects, results2Subject(result))
-			}
-			observations = append(observations, observation)
 		}
 	}
 	result := policy.PVPResult{
